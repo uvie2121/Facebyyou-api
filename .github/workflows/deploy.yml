@@ -1,0 +1,52 @@
+name: Deploy
+
+# Pushes to an environment branch deploy to the matching EC2 host by SSHing in
+# and pulling the latest code. Configure these repo secrets per environment:
+#   <ENV>_SSH_HOST, <ENV>_SSH_USER, <ENV>_SSH_KEY  (e.g. DEV_SSH_HOST, ...)
+
+on:
+  push:
+    branches: [dev, staging, main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve environment
+        id: env
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main)    echo "name=PROD" >> "$GITHUB_OUTPUT" ;;
+            staging) echo "name=STAGING" >> "$GITHUB_OUTPUT" ;;
+            *)       echo "name=DEV" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets[format('{0}_SSH_HOST', steps.env.outputs.name)] }}
+          USER: ${{ secrets[format('{0}_SSH_USER', steps.env.outputs.name)] }}
+          KEY: ${{ secrets[format('{0}_SSH_KEY', steps.env.outputs.name)] }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "No SSH host configured for ${{ steps.env.outputs.name }} — skipping."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key "$USER@$HOST" '
+            set -e
+            cd /opt/facebyyou-api
+            sudo git fetch --all
+            sudo git reset --hard origin/'"${GITHUB_REF_NAME}"'
+            sudo /opt/facebyyou-api/.venv/bin/pip install -r requirements.txt
+            sudo systemctl restart facebyyou-api
+            sleep 3
+            curl -fsS http://127.0.0.1:8000/api/v1/health
+          '

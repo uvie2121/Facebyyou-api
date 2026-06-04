@@ -1,0 +1,23 @@
+# systemd unit for the FaceByYou API.
+# Install at /etc/systemd/system/facebyyou-api.service then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now facebyyou-api
+
+[Unit]
+Description=FaceByYou API (FastAPI/Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=facebyyou
+Group=facebyyou
+WorkingDirectory=/opt/facebyyou-api
+EnvironmentFile=/opt/facebyyou-api/.env
+ExecStart=/opt/facebyyou-api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=always
+RestartSec=3
+# Logs go to journald -> shipped to CloudWatch by the CloudWatch agent.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

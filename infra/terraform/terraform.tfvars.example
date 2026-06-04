@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and adjust per environment.
+aws_region    = "us-east-1"
+environment   = "dev"          # dev | staging | production
+instance_type = "t3.small"
+git_branch    = "dev"          # match the environment branch
+
+# Recommended: lock SSH to your IP, and set a real key pair.
+# key_name         = "my-ec2-keypair"
+# ssh_ingress_cidr = "203.0.113.10/32"
