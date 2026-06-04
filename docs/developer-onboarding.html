@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FaceByYou — Developer Onboarding</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2430; line-height: 1.5; font-size: 12px; margin: 0; }
+  .cover { background: linear-gradient(135deg, #0ea5e9 0%, #6d28d9 100%); color: #fff; padding: 60px 48px; border-radius: 14px; margin-bottom: 28px; }
+  .cover h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  .cover .sub { font-size: 15px; opacity: 0.95; }
+  .cover .meta { margin-top: 22px; font-size: 12px; opacity: 0.9; }
+  h2 { color: #6d28d9; font-size: 18px; margin: 26px 0 8px; border-bottom: 2px solid #eef2ff; padding-bottom: 5px; }
+  h3 { font-size: 13.5px; margin: 16px 0 4px; color: #0ea5e9; }
+  p { margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+  th { background: #eef6ff; text-align: left; padding: 7px 9px; color: #075985; }
+  td { padding: 7px 9px; border-top: 1px solid #ececf3; vertical-align: top; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 10.5px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; font-size: 10.5px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; color: inherit; padding: 0; }
+  .callout { background: #fff7ed; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+  .good { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+  ul, ol { margin: 6px 0 6px 18px; padding: 0; }
+  li { margin: 3px 0; }
+  .footer { margin-top: 30px; font-size: 10px; color: #9ca3af; border-top: 1px solid #eee; padding-top: 8px; }
+  .pill { display: inline-block; background: rgba(255,255,255,.2); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 10px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="pill">ENGINEERING ONBOARDING</div>
+  <h1>FaceByYou — Developer Onboarding</h1>
+  <div class="sub">Everything a new backend engineer needs to get productive: access, local setup, architecture, and how to ship code.</div>
+  <div class="meta">
+    Repo: github.com/uvie2121/Facebyyou-api &nbsp;•&nbsp; AWS: Face by You (708761843741) / us-east-1<br>
+    Stack: Python · FastAPI · AWS (EC2, S3, DynamoDB, Secrets Manager) · Terraform · GitHub Actions
+  </div>
+</div>
+
+<h2>1. Welcome &amp; What You're Building</h2>
+<p>FaceByYou is an AI beauty &amp; skincare companion. The backend (this repo) accepts a short face video/photo, runs AI analysis, and returns skin metrics, a skin-age estimate, and makeup recommendations, persisting each user's history. It's a FastAPI service running on EC2, backed by S3 (media) and DynamoDB (data), deployed automatically via GitHub Actions.</p>
+
+<h2>2. Access Checklist (request from the founder)</h2>
+<p>Before you can be fully productive, make sure you have:</p>
+<table>
+  <tr><th>Access</th><th>What / How</th></tr>
+  <tr><td>GitHub repo</td><td>Collaborator (or org member) on <code>uvie2121/Facebyyou-api</code> with write access.</td></tr>
+  <tr><td>AWS account</td><td>An <b>IAM user</b> in the Face by You account (708761843741) with appropriate permissions. <b>Do not</b> use root credentials.</td></tr>
+  <tr><td>AWS CLI keys</td><td>Create an access key under your IAM user → configure a named CLI profile (below).</td></tr>
+  <tr><td>Secrets</td><td>You generally never need raw secrets — they live in AWS Secrets Manager and load onto the server automatically.</td></tr>
+</table>
+
+<h2>3. Local Environment Setup</h2>
+<p>Prerequisites: Python 3.11+ (3.12 recommended), Git, and optionally Docker &amp; Terraform.</p>
+<pre><code># 1. Clone
+git clone https://github.com/uvie2121/Facebyyou-api.git
+cd Facebyyou-api
+
+# 2. Virtual environment + dependencies
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# 3. Local config
+cp .env.example .env          # safe local defaults; never commit .env
+
+# 4. Run the API
+uvicorn app.main:app --reload
+# Open http://localhost:8000/docs for interactive API docs</code></pre>
+
+<h3>Get a dev login token &amp; call the API</h3>
+<pre><code>TOKEN=$(curl -s -X POST localhost:8000/api/v1/auth/dev-login \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@facebyyou.ai"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl localhost:8000/api/v1/users/me -H "Authorization: Bearer $TOKEN"</code></pre>
+
+<h3>Configure AWS CLI (for infra/debugging)</h3>
+<pre><code>aws configure --profile facebyyou   # paste your IAM access key + secret, region us-east-1
+export AWS_PROFILE=facebyyou
+aws sts get-caller-identity          # should show account 708761843741</code></pre>
+
+<h2>4. Repository Map</h2>
+<table>
+  <tr><th>Path</th><th>What lives there</th></tr>
+  <tr><td><code>app/main.py</code></td><td>FastAPI app, middleware, request logging, error handling.</td></tr>
+  <tr><td><code>app/core/</code></td><td>Config (env vars), JSON logging, JWT auth/security.</td></tr>
+  <tr><td><code>app/models/schemas.py</code></td><td>Pydantic request/response models — the API contract.</td></tr>
+  <tr><td><code>app/services/</code></td><td>Business logic: S3 uploads, DynamoDB access, <code>face_analysis</code> (AI seam).</td></tr>
+  <tr><td><code>app/api/routes/</code></td><td>Endpoints: health, auth, users, uploads, analysis.</td></tr>
+  <tr><td><code>infra/terraform/</code></td><td>All AWS infrastructure as code (S3, DynamoDB, IAM, EC2, etc.).</td></tr>
+  <tr><td><code>deploy/</code></td><td>EC2 bootstrap, systemd unit, Nginx config.</td></tr>
+  <tr><td><code>.github/workflows/</code></td><td>CI (lint + test) and Deploy (to EC2 via SSM).</td></tr>
+  <tr><td><code>tests/</code></td><td>Offline tests (AWS calls are mocked).</td></tr>
+</table>
+
+<h2>5. API Endpoints</h2>
+<table>
+  <tr><th>Method</th><th>Path (prefix <code>/api/v1</code>)</th><th>Purpose</th></tr>
+  <tr><td>GET</td><td>/health</td><td>Liveness probe</td></tr>
+  <tr><td>POST</td><td>/auth/dev-login</td><td>Dev-only JWT (disabled in prod)</td></tr>
+  <tr><td>GET / PUT</td><td>/users/me</td><td>Read / update profile</td></tr>
+  <tr><td>POST</td><td>/uploads/presign</td><td>Get a temporary S3 upload link</td></tr>
+  <tr><td>POST</td><td>/analysis</td><td>Run analysis on an uploaded object</td></tr>
+  <tr><td>GET</td><td>/analysis &amp; /analysis/{id}</td><td>History &amp; single result</td></tr>
+</table>
+
+<h2>6. How Deployment Works (CI/CD)</h2>
+<p>You don't manually SSH anywhere. The flow is automatic and key-less:</p>
+<ol>
+  <li>Open a PR → <b>CI</b> runs <code>ruff</code> (lint), <code>pytest</code> (tests), and a Docker build.</li>
+  <li>Merge to <code>main</code> → <b>Deploy</b> workflow runs.</li>
+  <li>GitHub Actions assumes an AWS role via <b>OIDC</b> (no stored keys) and uses <b>SSM Run Command</b> to tell the EC2 box to pull the latest code, reinstall dependencies, restart the service, and health-check itself.</li>
+</ol>
+<div class="good"><b>Branching:</b> <code>dev</code> (active work) → <code>staging</code> (pre-prod) → <code>main</code> (production). Never push directly to <code>main</code>; use PRs.</div>
+
+<h3>Manual deploy / re-run</h3>
+<pre><code># From the GitHub UI: Actions → Deploy → "Run workflow" (choose a ref)
+# Or trigger by merging to main.</code></pre>
+
+<h2>7. Working With Infrastructure (Terraform)</h2>
+<div class="callout"><b>Caution:</b> <code>terraform apply</code> changes live cloud resources and can cost money or delete data. Always run <code>terraform plan</code> first and have changes reviewed.</div>
+<pre><code>cd infra/terraform
+export AWS_PROFILE=facebyyou
+terraform init
+terraform plan         # preview — safe, makes no changes
+# terraform apply      # only when changes are approved</code></pre>
+<p>Key live resources today: EC2 <code>i-0e79c7070f1c72487</code>, bucket <code>facebyyou-uploads-dev</code>, tables <code>facebyyou-users-dev</code> / <code>facebyyou-analyses-dev</code>, secret <code>facebyyou-dev-app-config</code>, logs <code>/facebyyou/dev/api</code>.</p>
+
+<h2>8. Conventions &amp; Quality Bar</h2>
+<ul>
+  <li><b>Style:</b> run <code>ruff check . --fix</code> before committing; keep functions and files small and focused.</li>
+  <li><b>Tests:</b> add/extend tests in <code>tests/</code>; mock AWS so they run offline. <code>pytest</code> must pass.</li>
+  <li><b>Secrets:</b> never commit <code>.env</code>, keys, or credentials. Add new config to Secrets Manager and read it via <code>app/core/config.py</code>.</li>
+  <li><b>Logging:</b> use the structured logger; don't <code>print()</code>. Logs flow to CloudWatch.</li>
+  <li><b>The AI seam:</b> real models plug into <code>app/services/face_analysis.py</code> (<code>_run_inference</code>) — currently a deterministic placeholder.</li>
+</ul>
+
+<h2>9. Debugging the Live Server</h2>
+<pre><code># Open a shell on the instance WITHOUT SSH (uses SSM):
+aws ssm start-session --target i-0e79c7070f1c72487 --profile facebyyou
+
+# On the box:
+sudo systemctl status facebyyou-api
+sudo journalctl -u facebyyou-api -n 100 --no-pager
+curl -s localhost:8000/api/v1/health</code></pre>
+<p>Logs are also in CloudWatch under <code>/facebyyou/dev/api</code>.</p>
+
+<h2>10. First-Week Checklist</h2>
+<ul>
+  <li>☐ Get GitHub + AWS IAM access; configure the <code>facebyyou</code> CLI profile.</li>
+  <li>☐ Run the API locally and hit <code>/docs</code>.</li>
+  <li>☐ Read <code>app/main.py</code>, <code>app/api/routes/</code>, and <code>app/services/</code>.</li>
+  <li>☐ Make a tiny change on a branch, open a PR, watch CI pass.</li>
+  <li>☐ Run <code>terraform plan</code> (read-only) to understand the infrastructure.</li>
+</ul>
+
+<div class="footer">
+  FaceByYou — Developer Onboarding · github.com/uvie2121/Facebyyou-api · Keep this current as the system evolves. Confidential.
+</div>
+
+</body>
+</html>

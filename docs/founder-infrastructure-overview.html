@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FaceByYou — Infrastructure Overview</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1f2430; line-height: 1.5; font-size: 12px; margin: 0;
+  }
+  .cover {
+    background: linear-gradient(135deg, #6d28d9 0%, #db2777 100%);
+    color: #fff; padding: 60px 48px; border-radius: 14px; margin-bottom: 28px;
+  }
+  .cover h1 { font-size: 34px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  .cover .sub { font-size: 15px; opacity: 0.95; }
+  .cover .meta { margin-top: 22px; font-size: 12px; opacity: 0.9; }
+  h2 { color: #6d28d9; font-size: 18px; margin: 26px 0 8px; border-bottom: 2px solid #f0e6fb; padding-bottom: 5px; }
+  h3 { font-size: 13.5px; margin: 16px 0 4px; color: #db2777; }
+  p { margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+  th { background: #f5f0fc; text-align: left; padding: 7px 9px; color: #4c1d95; }
+  td { padding: 7px 9px; border-top: 1px solid #ececf3; vertical-align: top; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 10.5px; }
+  .callout { background: #fff7ed; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+  .good { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+  .pill { display: inline-block; background: #ede9fe; color: #5b21b6; border-radius: 999px; padding: 2px 10px; font-size: 10px; font-weight: 600; }
+  ul { margin: 6px 0 6px 18px; padding: 0; }
+  li { margin: 3px 0; }
+  .footer { margin-top: 30px; font-size: 10px; color: #9ca3af; border-top: 1px solid #eee; padding-top: 8px; }
+  .grid { display: flex; gap: 14px; }
+  .grid > div { flex: 1; background: #faf9fe; border: 1px solid #efeafd; border-radius: 10px; padding: 12px 14px; }
+  .big { font-size: 22px; font-weight: 700; color: #6d28d9; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="pill" style="background:rgba(255,255,255,.2);color:#fff;">FOUNDER BRIEF</div>
+  <h1>FaceByYou — Infrastructure Overview</h1>
+  <div class="sub">How the backend &amp; cloud infrastructure for our AI beauty + skincare MVP is built, what it costs, and how it stays secure.</div>
+  <div class="meta">
+    AWS Account: <b>Face by You</b> (708761843741) &nbsp;•&nbsp; Region: us-east-1<br>
+    Environment: <b>dev</b> &nbsp;•&nbsp; Prepared for the founding team
+  </div>
+</div>
+
+<h2>1. The 30-Second Summary</h2>
+<p>We have a working, secure cloud backend running on Amazon Web Services (AWS). It can accept face photos/videos from the mobile app, run AI analysis, return skincare &amp; makeup recommendations, and store user history — all behind login. Code ships automatically to the server when engineers merge to the main branch. Everything is defined as code, so we can recreate or scale it on demand.</p>
+
+<div class="grid">
+  <div><div class="big">1</div>cloud account, fully under our control</div>
+  <div><div class="big">~$15</div>/month current running cost (dev)</div>
+  <div><div class="big">17+</div>infrastructure pieces, all automated</div>
+  <div><div class="big">0</div>secrets or passwords stored in code</div>
+</div>
+
+<h2>2. What "Infrastructure" Means Here</h2>
+<p>Think of it as the digital factory behind the app. The phone app is the storefront; the infrastructure is the warehouse, machinery, security guards, and delivery trucks that make it actually work. Below is every part and why it exists.</p>
+
+<table>
+  <tr><th>Piece</th><th>AWS Service</th><th>Why it matters (plain English)</th></tr>
+  <tr><td>The server</td><td>EC2</td><td>The always-on computer that runs our backend code and answers the app's requests.</td></tr>
+  <tr><td>Photo/video storage</td><td>S3</td><td>Where user face images &amp; videos are stored — private, encrypted, auto-deleted after 30 days in dev.</td></tr>
+  <tr><td>Database</td><td>DynamoDB</td><td>Stores users, scan results, and history. Scales automatically; we pay only for what we use.</td></tr>
+  <tr><td>Secret vault</td><td>Secrets Manager</td><td>Keeps API keys &amp; passwords locked away — never in the code or on anyone's laptop.</td></tr>
+  <tr><td>Logs &amp; monitoring</td><td>CloudWatch</td><td>Records what happens so we can see errors, crashes, and usage.</td></tr>
+  <tr><td>Permissions</td><td>IAM</td><td>Controls exactly what each part is allowed to do — least privilege, like giving keys only to the rooms someone needs.</td></tr>
+  <tr><td>Auto-deploy pipeline</td><td>GitHub Actions + SSM</td><td>When engineers push code, it tests and ships to the server automatically — no manual logins.</td></tr>
+</table>
+
+<h2>3. How a User Request Flows</h2>
+<p>This is what happens, end to end, when someone scans their face in the app:</p>
+<ul>
+  <li><b>1. Capture &amp; upload</b> — The app records a short video and uploads it <i>directly</i> to secure storage (S3) using a temporary, single-use link. Large media never passes through our server, which keeps it fast and cheap.</li>
+  <li><b>2. Analyze</b> — The app asks the backend to analyze the upload. The AI analysis service returns skin metrics, a skin-age estimate, and makeup recommendations (with a clear medical disclaimer).</li>
+  <li><b>3. Store &amp; return</b> — Results are saved to the database under that user and sent back to the app, building their progress history over time.</li>
+  <li><b>4. Login on everything</b> — Every request requires a valid login token, so one user can never see another's data.</li>
+</ul>
+
+<h2>4. Security &amp; Privacy (Investor- &amp; Apple-Ready)</h2>
+<p>Because we handle <b>face data</b>, security was built in from day one, not bolted on:</p>
+<div class="good">
+  <ul style="margin-bottom:0;">
+    <li>Storage buckets are <b>fully private</b> and <b>encrypted</b> — no public access possible.</li>
+    <li>Upload links are <b>temporary</b> (expire in 15 minutes) and size-limited.</li>
+    <li>The server uses <b>least-privilege permissions</b> — it can only touch the exact resources it needs.</li>
+    <li>All API keys live in a <b>secret vault</b>, never in code or chat.</li>
+    <li>Deployments use <b>short-lived, key-less credentials</b> — there are no permanent passwords for an attacker to steal.</li>
+  </ul>
+</div>
+<div class="callout">
+  <b>Action items before public launch:</b> (1) replace the temporary admin access key with a proper limited user, (2) add HTTPS/TLS encryption on the public address, (3) publish a privacy policy, terms, and face-data usage disclosure, and (4) lock down remote-admin access to our office/VPN only.
+</div>
+
+<h2>5. What It Costs</h2>
+<table>
+  <tr><th>Item</th><th>Dev (now)</th><th>Notes</th></tr>
+  <tr><td>Server (EC2 t3.small)</td><td>~$15/mo</td><td>The only fixed cost. Can be paused when not in use.</td></tr>
+  <tr><td>Storage (S3)</td><td>cents</td><td>Pennies per GB; old uploads auto-expire.</td></tr>
+  <tr><td>Database (DynamoDB)</td><td>cents</td><td>Pay-per-request; near zero at low volume.</td></tr>
+  <tr><td>Secrets, logs, pipeline</td><td>&lt; $2/mo</td><td>Minimal at MVP scale.</td></tr>
+  <tr><td><b>Total (dev)</b></td><td><b>~$15–20/mo</b></td><td>Scales with users; designed to grow gradually, not spike.</td></tr>
+</table>
+
+<h2>6. Environments &amp; Growth Path</h2>
+<p>We use a standard three-stage setup so we never test on real users:</p>
+<table>
+  <tr><th>Environment</th><th>Purpose</th><th>Status</th></tr>
+  <tr><td>Dev</td><td>Engineers build and test freely</td><td>Live now</td></tr>
+  <tr><td>Staging</td><td>Final pre-launch testing</td><td>Ready to provision (same code, one command)</td></tr>
+  <tr><td>Production</td><td>Real users</td><td>Provision when ready for launch</td></tr>
+</table>
+<p><b>Scaling later</b> is straightforward: add a load balancer + auto-scaling so the app can handle thousands of users and deploy with zero downtime, and move heavy AI models to dedicated GPU services. The foundation we built supports this without a rewrite.</p>
+
+<h2>7. What the Founder Should Know / Decide</h2>
+<ul>
+  <li>We <b>own</b> the entire stack in our AWS account — no vendor lock-in beyond AWS itself.</li>
+  <li>The MVP runs on a <b>single server</b> today (one point of failure) — fine for testing, upgrade before heavy marketing.</li>
+  <li>The <b>AI analysis is a working placeholder</b> that returns structured results; plugging in the real computer-vision models is the next major engineering milestone.</li>
+  <li>Decisions needed soon: login provider (AWS Cognito vs Firebase), and timing for HTTPS + privacy/legal docs.</li>
+</ul>
+
+<div class="footer">
+  FaceByYou — Infrastructure Overview · AWS account 708761843741 · Generated automatically from the live infrastructure. Confidential.
+</div>
+
+</body>
+</html>

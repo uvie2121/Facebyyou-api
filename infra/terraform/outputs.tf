@@ -29,3 +29,13 @@ output "app_secret_arn" {
 output "log_group" {
   value = aws_cloudwatch_log_group.api.name
 }
+
+output "api_instance_id" {
+  description = "EC2 instance ID targeted by the CI/CD deploy pipeline."
+  value       = aws_instance.api.id
+}
+
+output "github_deploy_role_arn" {
+  description = "IAM role ARN GitHub Actions assumes via OIDC to deploy."
+  value       = aws_iam_role.github_deploy.arn
+}

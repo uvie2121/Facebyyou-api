@@ -1,52 +1,80 @@
 name: Deploy
 
-# Pushes to an environment branch deploy to the matching EC2 host by SSHing in
-# and pulling the latest code. Configure these repo secrets per environment:
-#   <ENV>_SSH_HOST, <ENV>_SSH_USER, <ENV>_SSH_KEY  (e.g. DEV_SSH_HOST, ...)
+# Deploys to the EC2 instance via AWS SSM Run Command using short-lived OIDC
+# credentials -- no SSH keys, no long-lived AWS secrets, no open port 22 needed.
+#
+# Required repo configuration (Settings -> Secrets and variables -> Actions -> Variables):
+#   AWS_REGION            e.g. us-east-1
+#   AWS_DEPLOY_ROLE_ARN   terraform output github_deploy_role_arn
+#   SSM_INSTANCE_ID       terraform output api_instance_id
 
 on:
   push:
-    branches: [dev, staging, main]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy"
+        required: false
+        default: "main"
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Resolve deploy ref
+        id: vars
+        run: echo "ref=${{ github.event.inputs.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve environment
-        id: env
-        run: |
-          case "${GITHUB_REF_NAME}" in
-            main)    echo "name=PROD" >> "$GITHUB_OUTPUT" ;;
-            staging) echo "name=STAGING" >> "$GITHUB_OUTPUT" ;;
-            *)       echo "name=DEV" >> "$GITHUB_OUTPUT" ;;
-          esac
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Deploy over SSH
+      - name: Deploy via SSM Run Command
         env:
-          HOST: ${{ secrets[format('{0}_SSH_HOST', steps.env.outputs.name)] }}
-          USER: ${{ secrets[format('{0}_SSH_USER', steps.env.outputs.name)] }}
-          KEY: ${{ secrets[format('{0}_SSH_KEY', steps.env.outputs.name)] }}
+          INSTANCE_ID: ${{ vars.SSM_INSTANCE_ID }}
+          DEPLOY_REF: ${{ steps.vars.outputs.ref }}
         run: |
-          if [ -z "$HOST" ]; then
-            echo "No SSH host configured for ${{ steps.env.outputs.name }} — skipping."
-            exit 0
-          fi
-          mkdir -p ~/.ssh
-          echo "$KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key "$USER@$HOST" '
-            set -e
-            cd /opt/facebyyou-api
-            sudo git fetch --all
-            sudo git reset --hard origin/'"${GITHUB_REF_NAME}"'
-            sudo /opt/facebyyou-api/.venv/bin/pip install -r requirements.txt
-            sudo systemctl restart facebyyou-api
-            sleep 3
-            curl -fsS http://127.0.0.1:8000/api/v1/health
-          '
+          set -euo pipefail
+
+          read -r -d '' SCRIPT <<EOF || true
+          set -euo pipefail
+          cd /opt/facebyyou-api
+          git fetch --all --prune
+          git reset --hard "origin/${DEPLOY_REF}"
+          /opt/facebyyou-api/.venv/bin/pip install --upgrade -r requirements.txt
+          systemctl restart facebyyou-api
+          sleep 5
+          curl -fsS http://127.0.0.1:8000/api/v1/health
+          EOF
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${DEPLOY_REF} (${GITHUB_SHA::7})" \
+            --parameters "commands=[$(jq -Rs . <<< "$SCRIPT")]" \
+            --query "Command.CommandId" --output text)
+          echo "Sent SSM command: $CMD_ID"
+
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+
+          STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text)
+          echo "::group::Deploy output"
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text
+          echo "::endgroup::"
+          echo "::group::Deploy errors"
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text
+          echo "::endgroup::"
+
+          echo "Final status: $STATUS"
+          [ "$STATUS" = "Success" ]

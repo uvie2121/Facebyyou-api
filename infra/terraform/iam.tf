@@ -76,6 +76,13 @@ resource "aws_iam_role_policy_attachment" "cw_agent" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+# Allows SSM Session Manager + Run Command (used by the CI/CD deploy pipeline,
+# so we deploy without SSH keys or an open port 22).
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.api.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "api" {
   name = "${local.name}-api-profile"
   role = aws_iam_role.api.name
