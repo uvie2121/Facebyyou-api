@@ -51,12 +51,16 @@ jobs:
           # one-line command (echo <b64> | base64 -d | bash) because the AWS CLI
           # shorthand parser does not interpret JSON \n escapes -- a multi-line
           # script passed directly would collapse onto one line.
+          # SSM runs as root, but the repo/venv are owned by the 'facebyyou'
+          # service user. Run git/pip as that user (avoids git's "dubious
+          # ownership" guard and keeps file ownership correct); use root only
+          # for the systemctl restart.
           cat > deploy_remote.sh <<EOF
           set -euo pipefail
           cd /opt/facebyyou-api
-          git fetch --all --prune
-          git reset --hard "origin/${DEPLOY_REF}"
-          /opt/facebyyou-api/.venv/bin/pip install --upgrade -r requirements.txt
+          sudo -u facebyyou git fetch --all --prune
+          sudo -u facebyyou git reset --hard "origin/${DEPLOY_REF}"
+          sudo -u facebyyou /opt/facebyyou-api/.venv/bin/pip install --upgrade -r requirements.txt
           systemctl restart facebyyou-api
           sleep 5
           curl -fsS http://127.0.0.1:8000/api/v1/health
