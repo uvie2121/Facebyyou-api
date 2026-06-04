@@ -47,7 +47,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          read -r -d '' SCRIPT <<EOF || true
+          # Build the remote script, then base64-encode it. We send a single
+          # one-line command (echo <b64> | base64 -d | bash) because the AWS CLI
+          # shorthand parser does not interpret JSON \n escapes -- a multi-line
+          # script passed directly would collapse onto one line.
+          cat > deploy_remote.sh <<EOF
           set -euo pipefail
           cd /opt/facebyyou-api
           git fetch --all --prune
@@ -58,11 +62,12 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/v1/health
           EOF
 
+          B64=$(base64 -w0 deploy_remote.sh)
           CMD_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy ${DEPLOY_REF} (${GITHUB_SHA::7})" \
-            --parameters "commands=[$(jq -Rs . <<< "$SCRIPT")]" \
+            --parameters commands="echo $B64 | base64 -d | bash" \
             --query "Command.CommandId" --output text)
           echo "Sent SSM command: $CMD_ID"
 
