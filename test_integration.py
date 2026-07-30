@@ -15,7 +15,7 @@ async def run_test():
 
     try:
         # Run the pipeline
-        # Your analyze function will now use the fetch_image_from_s3 logic.
+        # Analyze function will now use the fetch_image_from_s3 logic.
         result = await analyze(
             user_id="test_user_123",
             session_id="session_001",
