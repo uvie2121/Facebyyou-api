@@ -7,7 +7,7 @@ from app.services.face_analysis import analyze
 async def run_test():
     print("🧪 Testing full analysis pipeline...")
 
-    # Ensure your test images are in the root directory
+    # Ensure test images are in the root directory, test using python test_integration.py
     test_files = ["front.jpg", "left.jpg", "right.jpg"]
     if not all(os.path.exists(f) for f in test_files):
         print("❌ Error: front.jpg, left.jpg, and right.jpg must exist in the root folder.")
