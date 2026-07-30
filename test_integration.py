@@ -28,7 +28,6 @@ async def run_test():
         print("Category Scores:")
         for category, score in result.category_scores.model_dump().items():
           print(f"  - {category}: {score}")
-        print(f"Overall Score: {result.category_scores.overall_score}")
         print(f"Glam Type: {getattr(result.ai_feedback, 'glam_type', 'N/A')}")
         print(f"Strengths: {result.ai_feedback.strengths}")
         print(f"Improvements: {result.ai_feedback.improvements}")
