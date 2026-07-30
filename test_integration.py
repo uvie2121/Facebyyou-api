@@ -5,7 +5,7 @@ from app.services.face_analysis import analyze
 
 
 async def run_test():
-    print("🧪 Testing full analysis pipeline for the...")
+    print("🧪 Testing full analysis pipeline...")
 
     # Ensure your test images are in the root directory
     test_files = ["front.jpg", "left.jpg", "right.jpg"]

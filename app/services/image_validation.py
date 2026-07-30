@@ -81,9 +81,9 @@ def validate_image(image_array: np.ndarray, view: str) -> dict[str, Any]:
 
         if view == "front" and (pose_ratio < 0.5 or pose_ratio > 2.0):
             errors.append("Face is not looking straight at the camera.")
-        elif view == "left" and pose_ratio < 2.0:
+        elif view == "left" and pose_ratio < 1.4: #relaxed from 2.0
             errors.append("Face does not appear to be a correct left profile.")
-        elif view == "right" and pose_ratio > 0.5:
+        elif view == "right" and pose_ratio > 0.7: #relaxed from 0.5
             errors.append("Face does not appear to be a correct right profile.")
 
     is_valid = len(errors) == 0
