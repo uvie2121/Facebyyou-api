@@ -13,6 +13,8 @@ venv/
 !.env.example
 *.pem
 *.key
+*.p8
+*.json
 
 # Terraform
 infra/terraform/.terraform/
@@ -26,3 +28,10 @@ infra/terraform/.terraform/
 .DS_Store
 .idea/
 .vscode/
+
+
+firebase-adminsdk*.json
+firebase-service-account*.json
+*.jpg
+*.jpeg
+*.png

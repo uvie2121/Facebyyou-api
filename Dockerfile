@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 FROM python:3.12-slim AS base
 
+# Suppress MediaPipe/Google C++ telemetry logs
+ENV GLOG_minloglevel=2
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
@@ -12,6 +15,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY face_landmarker.task ./face_landmarker.task
 
 # Run as a non-root user.
 RUN useradd --create-home --uid 1001 appuser

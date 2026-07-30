@@ -34,9 +34,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-_RESERVED_ATTRS = set(
-    vars(logging.makeLogRecord({})).keys()
-) | {"message", "asctime"}
+_RESERVED_ATTRS = set(vars(logging.makeLogRecord({})).keys()) | {"message", "asctime"}
 
 
 def configure_logging() -> None:

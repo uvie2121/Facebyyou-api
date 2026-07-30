@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # --- Security / Auth ---
-    # For the MVP we verify JWTs minted by AWS Cognito (or Firebase). The secret
+    # For the MVP we verify JWTs minted by Firebase(or AWS Cognito). The secret
     # is only used for locally-issued dev tokens; in prod we validate against the
     # provider's JWKS endpoint.
     JWT_SECRET: str = "change-me-in-secrets-manager"
@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     COGNITO_REGION: str | None = None
     COGNITO_USER_POOL_ID: str | None = None
     COGNITO_APP_CLIENT_ID: str | None = None
+    FIREBASE_WEB_API_KEY: str | None = None
+    FIREBASE_ADMIN_CREDENTIALS_PATH: str | None = None
 
     # --- CORS ---
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
@@ -64,7 +66,24 @@ class Settings(BaseSettings):
     # --- DynamoDB ---
     DYNAMODB_USERS_TABLE: str = "facebyyou-users-dev"
     DYNAMODB_ANALYSES_TABLE: str = "facebyyou-analyses-dev"
+    DYNAMODB_SESSIONS_TABLE: str = "facebyyou-sessions-dev"
+    DYNAMODB_ADMIN_TABLE: str = "facebyyou-admin-users-dev"
+    DYNAMODB_AUDIT_TABLE: str = "facebyyou-audit-logs-dev"
+    DYNAMODB_IMAGES_TABLE: str = "facebyyou-images-dev"
+    DYNAMODB_ANALYTICS_TABLE: str = "facebyyou-analytics-dev"
     DYNAMODB_ENDPOINT_URL: str | None = None  # set to http://localhost:8001 for local DynamoDB
+
+    # --- AI Services ---
+    OLLAMA_API_URL: str = "http://localhost:11434/api/generate"
+
+    NIM_API_KEY: str | None = None
+    NIM_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NIM_MODEL_NAME: str = "nvidia/nemotron-nano-12b-v2-vl"
+    NIM_TIMEOUT_SECONDS: int = 45
+    NIM_IMAGE_URL_TTL_SECONDS: int = 120
+
+    # --- Mixpanel ---
+    MIXPANEL_PROJECT_TOKEN: str | None = None
 
     @field_validator("BACKEND_CORS_ORIGINS", "ALLOWED_UPLOAD_CONTENT_TYPES", mode="before")
     @classmethod

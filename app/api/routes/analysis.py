@@ -16,26 +16,58 @@ router = APIRouter()
 
 
 @router.post(
-    "",
+    "/{session_id}",
     response_model=AnalysisResult,
     status_code=status.HTTP_201_CREATED,
-    summary="Run face analysis on a previously uploaded object",
+    summary="Run tri-angle face analysis on previously uploaded objects.",
 )
 async def create_analysis(
+    session_id: str,
     payload: AnalysisRequest,
     current: TokenPayload = Depends(get_current_user),
 ) -> AnalysisResult:
-    if not storage.object_exists(payload.object_key):
+    existing_session = database.get_session(session_id)
+    if not existing_session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if existing_session.get("user_id") != current.sub:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Uploaded object not found. Complete the upload first.",
+            status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to user"
         )
-    result = face_analysis.analyze(
+    if existing_session.get("status") != "OPEN":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session is not open")
+
+    base_path = storage._get_session_base_path(current.sub, session_id)
+
+    # Predict the exact keys based on how they were named in the upload step.
+    front_key = f"{base_path}/front.jpg"
+    left_key = f"{base_path}/left.jpg"
+    right_key = f"{base_path}/right.jpg"
+
+    # Validate all three views landed safely in S3
+    for key in [front_key, left_key, right_key]:
+        storage.validate_uploaded_jpeg(key)
+
+    # Fetch, process, and aggregate the 3 views
+    result = await face_analysis.analyze(
         user_id=current.sub,
-        object_key=payload.object_key,
+        session_id=session_id,
+        front_key=front_key,
+        left_key=left_key,
+        right_key=right_key,
         analysis_types=payload.analysis_types,
     )
-    return database.save_analysis(result)
+
+    for view_name, key in [("front", front_key), ("left", left_key), ("right", right_key)]:
+        database.log_uploaded_image(
+            user_id=current.sub, session_id=session_id, image_url=key, image_type=view_name
+        )
+
+    saved_result = database.save_analysis(result)
+
+    # Lock only after a durable analysis result exists.
+    database.update_session_status(current.sub, session_id, "LOCKED")
+
+    return saved_result
 
 
 @router.get(
@@ -48,6 +80,12 @@ async def list_analyses(
     current: TokenPayload = Depends(get_current_user),
 ) -> list[AnalysisResult]:
     return database.list_analyses(current.sub, limit=limit)
+
+
+@router.get("/session/{session_id}", response_model=list[AnalysisResult])
+async def get_session_history(session_id: str, current: TokenPayload = Depends(get_current_user)):
+    results = database.get_analyses_by_session(user_id=current.sub, session_id=session_id)
+    return results
 
 
 @router.get(
