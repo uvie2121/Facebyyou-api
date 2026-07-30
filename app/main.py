@@ -5,15 +5,21 @@ from __future__ import annotations
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+import firebase_admin
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from firebase_admin import credentials
 
 from app import __version__
 from app.api.routes import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
+from app.services.cleanup import process_pending_deletions
+from app.services.database import initialize_database
 
 configure_logging()
 logger = get_logger(__name__)
@@ -25,8 +31,26 @@ async def lifespan(_: FastAPI):
         "Starting FaceByYou API",
         extra={"environment": settings.ENVIRONMENT, "version": __version__},
     )
-    yield
-    logger.info("Shutting down FaceByYou API")
+
+    # Spin up local tables if they don't exist
+    try:
+        initialize_database()
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+
+    # Run retention cleanup outside request handling.  The scheduler must be
+    # started before yielding control to FastAPI and stopped during shutdown.
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(process_pending_deletions, "interval", days=1)
+    scheduler.start()
+    logger.info("Background deletion scheduler started")
+
+    try:
+        yield
+    finally:
+        logger.info("Shutting down FaceByYou API")
+        scheduler.shutdown(wait=False)
+        logger.info("Background deletion scheduler stopped")
 
 
 app = FastAPI(
@@ -45,6 +69,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- FIREBASE INITIALIZATION ---
+# Check if it's already initialized to prevent errors when the server reloads
+if not firebase_admin._apps:
+    credential_path = settings.FIREBASE_ADMIN_CREDENTIALS_PATH
+
+    if not credential_path:
+        raise RuntimeError("FIREBASE_ADMIN_CREDENTIALS_PATH must be configured.")
+
+    path = Path(credential_path)
+    if not path.is_file():
+        raise RuntimeError(f"Firebase Admin credential file was not found: {path}")
+
+    firebase_admin.initialize_app(credentials.Certificate(str(path)))
 
 
 @app.middleware("http")

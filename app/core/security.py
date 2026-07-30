@@ -14,6 +14,7 @@ from typing import Any
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth as firebase_auth
 
 from app.core.config import settings
 from app.models.schemas import TokenPayload
@@ -22,7 +23,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
-    """Mint a local development JWT (HS256). Not used when Cognito is configured."""
+    """Mint a local development JWT (HS256). Not used when Firebase is configured."""
     now = datetime.now(UTC)
     claims: dict[str, Any] = {
         "sub": subject,
@@ -37,7 +38,6 @@ def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None
 
 def _decode_token(token: str) -> TokenPayload:
     try:
-        # NOTE: In production with Cognito, swap this for JWKS-based RS256
         # verification against the user pool's well-known keys.
         payload = jwt.decode(
             token,
@@ -57,22 +57,41 @@ def _decode_token(token: str) -> TokenPayload:
         ) from exc
 
     subject = payload.get("sub")
+    role = payload.get("role")
     if not subject:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing subject",
         )
-    return TokenPayload(sub=subject, email=payload.get("email"), claims=payload)
+    return TokenPayload(sub=subject, email=payload.get("email"), role=role, claims=payload)
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> TokenPayload:
-    """FastAPI dependency that resolves the authenticated user from a bearer token."""
+    """
+    FastAPI dependency that resolves the authenticated user from a bearer token.
+    Supports BOTH Firebase production tokens and local Dev tokens.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     if credentials is None or not credentials.credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return _decode_token(credentials.credentials)
+        raise credentials_exception
+    token = credentials.credentials
+
+    # Try Firebase (Production Flow)
+    try:
+        decoded_token = firebase_auth.verify_id_token(token)
+        return TokenPayload(sub=decoded_token["uid"], email=decoded_token.get("email", ""))
+    except Exception:
+        # If Firebase rejects it, try the Local Dev Token flow
+        try:
+            return _decode_token(token)
+
+        except Exception as local_error:
+            # If BOTH fail, the token is truly invalid or expired
+            raise credentials_exception from local_error
